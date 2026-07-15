@@ -8,3 +8,11 @@ services:
     env_file:
       - .env # This will load GROQ_API_KEY
     restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    depends_on:
+      - api
