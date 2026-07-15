@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, MessageSquarePlus, MessageSquare } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 const generateUUID = () => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -103,7 +104,7 @@ function App() {
                 {msg.role === 'user' ? 'U' : 'RT'}
               </div>
               <div className="message-bubble">
-                {msg.content}
+                <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>
             </div>
           ))
