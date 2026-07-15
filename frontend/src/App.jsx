@@ -44,7 +44,7 @@ function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`http://localhost:8000/api/chat/${conversationId}/message`, {
+      const response = await fetch(`/api/chat/${conversationId}/message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
