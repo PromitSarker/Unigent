@@ -21,6 +21,21 @@ _LLM_WITH_TOOLS: Optional[Any] = None
 # Plain LLM (no tools) — used by format_response_node to produce friendly text
 _LLM_PLAIN: Optional[Any] = None
 
+CONTACT_INFO = """**Direct Contact**
+Prefer WhatsApp or phone for quick response.
+
+**Phone**
++880 1712-816563
+
+**Email**
+sales@rtcom.bd
+
+**WhatsApp**
+Start Chat
+
+**Office**
+Mannan Tower (3rd floor), Ka 96/3 Progati Sharani, Dhaka 1229, Bangladesh."""
+
 
 def _get_llm_with_tools() -> Optional[Any]:
 	"""Return the tool-bound LLM, initialising it once."""
@@ -250,6 +265,9 @@ def execute_tool_node(state: AgentState) -> Dict[str, Any]:
 
 def format_response_node(state: AgentState) -> Dict[str, Any]:
 	"""Called after tool execution — uses a plain LLM to convert raw tool output into a friendly reply."""
+	if state.get("escalate"):
+		return {"final_response": f"I am connecting you to a human agent who can assist with this request.\n\n{CONTACT_INFO}"}
+
 	messages = state.get("messages", [])
 	if not messages:
 		return {}
@@ -308,9 +326,16 @@ RULES:
 
 def escalate_to_human_node(state: AgentState) -> Dict[str, Any]:
 	"""Hard handoff node — signals that a human agent should take over."""
+	# If LLM failed, final_response is already set to "The assistant is not available..."
+	current_response = state.get("final_response", "")
+	if not current_response or "connecting you to a human" in current_response:
+		prefix = "I am connecting you to a human agent who can assist with this request."
+	else:
+		prefix = current_response
+
 	return {
 		"escalate": True,
-		"final_response": "I am connecting you to a human agent who can assist with this request.",
+		"final_response": f"{prefix}\n\n{CONTACT_INFO}",
 	}
 
 
