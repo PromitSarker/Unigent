@@ -63,6 +63,12 @@ body {
   color: var(--primary-color);
 }
 
+.brand-logo {
+  height: 28px;
+  width: auto;
+  object-fit: contain;
+}
+
 .new-chat-btn {
   display: flex;
   align-items: center;
@@ -259,8 +265,9 @@ body {
   text-align: center;
 }
 
-.empty-state-icon {
-  color: var(--primary-color);
+.empty-state-logo {
+  max-width: 200px;
+  height: auto;
   margin-bottom: 16px;
 }
 

@@ -81,8 +81,7 @@ function App() {
     <div className="app-container">
       <header className="header">
         <div className="header-brand">
-          <MessageSquare size={24} />
-          <span>RT Communications</span>
+          <img src="/logo.png" alt="RT Communications Logo" className="brand-logo" />
         </div>
         <button className="new-chat-btn" onClick={handleNewChat}>
           <MessageSquarePlus size={18} />
@@ -93,7 +92,7 @@ function App() {
       <main className="chat-container">
         {messages.length === 0 ? (
           <div className="empty-state">
-            <MessageSquare size={48} className="empty-state-icon" />
+            <img src="/logo.png" alt="RT Communications Logo" className="empty-state-logo" />
             <h2>How can I help you today?</h2>
             <p>Ask about masking SMS, pricing, or our API features.</p>
           </div>
