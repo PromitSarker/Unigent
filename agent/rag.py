@@ -1,0 +1,50 @@
+import os
+from typing import List
+
+from langchain_community.vectorstores import Chroma
+from langchain_core.documents import Document
+from langchain_huggingface import HuggingFaceEmbeddings
+
+# Persist directory for ChromaDB
+CHROMA_PERSIST_DIR = os.path.join(os.path.dirname(__file__), "..", "chroma_db")
+
+# Initialize embeddings
+# sentence-transformers/all-MiniLM-L6-v2 is a small, fast model for embeddings
+_embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+# Initialize Chroma vector store
+_vectorstore = Chroma(
+	collection_name="rt_comm_knowledge",
+	embedding_function=_embeddings,
+	persist_directory=CHROMA_PERSIST_DIR
+)
+
+def add_document(text: str, metadata: dict = None) -> str:
+	"""Adds a document to the Chroma vector store and returns the ID."""
+	import uuid
+	doc_id = str(uuid.uuid4())
+	
+	doc = Document(page_content=text, metadata=metadata or {})
+	_vectorstore.add_documents(documents=[doc], ids=[doc_id])
+	return doc_id
+
+def delete_document(doc_id: str) -> bool:
+	"""Deletes a document from the Chroma vector store by ID."""
+	try:
+		_vectorstore.delete(ids=[doc_id])
+		return True
+	except ValueError:
+		# ID not found
+		return False
+
+def search_documents(query: str, k: int = 3) -> str:
+	"""Searches the vector store and returns a formatted string of results."""
+	results = _vectorstore.similarity_search(query, k=k)
+	if not results:
+		return "No relevant information found in the knowledge base."
+	
+	formatted = []
+	for i, doc in enumerate(results, 1):
+		formatted.append(f"Result {i}:\n{doc.page_content}")
+	
+	return "\n\n".join(formatted)
