@@ -165,7 +165,8 @@ function LeadsView() {
       'Trade License',
       'NID',
       'Passport Size Photo',
-      'Masking Name'
+      'Masking Name',
+      'Temporary Password'
     ];
     
     leads.forEach(lead => {

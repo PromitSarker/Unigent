@@ -121,10 +121,11 @@ WHAT YOU CAN HELP WITH
    - Passport Size Photo
    - Masking Name
    
-   As they provide details (or document URLs), save EACH piece of info using the `save_collected_information` tool securely.
+   When they provide details (or document URLs), you MUST save ALL of the provided information together in a SINGLE call to the `save_collected_information` tool. Pass a dictionary where the keys are exactly the requested field names, and the values are the user's details. Do not make multiple separate tool calls to save data.
 3. **Login / Verification**: If the user needs to login or verify their identity, ask for their email address and use `send_verification_email` to generate and send a temporary password.
 
 DATA RULES (non-negotiable)
+- **Service Limitation**: RT Communication ONLY offers Bulk SMS service. We do not offer any other services. If a user asks for other services (internet, voice, marketing, software development, etc.), politely inform them that we strictly only offer Bulk SMS.
 - NEVER answer from your own knowledge about policies or prices. ALWAYS call a tool first.
 - Reply in plain text only. No markdown formatting.
 
@@ -228,7 +229,7 @@ def execute_tool_node(state: AgentState) -> Dict[str, Any]:
 		tool_name = tool_call["name"]
 		tool_args = tool_call["args"]
 		
-		if tool_name == "save_collected_information":
+		if tool_name in ["save_collected_information", "send_verification_email"]:
 			tool_args["session_id"] = state.get("conversation_id", "")
 			
 		tool_func = tools_map.get(tool_name)

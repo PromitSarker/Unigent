@@ -30,41 +30,48 @@ def search_knowledge_base(query: str) -> str:
 
 
 class SaveCollectedInformationInput(BaseModel):
-	key: str
-	value: str
+	data: Dict[str, str]
 	session_id: str = "" # Injected by the system, LLM does not need to provide this.
 
 
 @tool(args_schema=SaveCollectedInformationInput)
-def save_collected_information(key: str, value: str, session_id: str = "") -> str:
+def save_collected_information(data: Dict[str, str], session_id: str = "") -> str:
 	"""
-	Save a specific piece of information gathered from the user (e.g., for bulk message services, lead gen, etc).
+	Save pieces of information gathered from the user (e.g., for bulk message services, lead gen, etc).
+	Pass a dictionary mapping the exact requested keys to the user's provided values.
 	Do NOT provide session_id, it is injected automatically.
 	
-	Why it's needed: When the user wants to buy a service or provide their information, use this tool to securely store it key by key.
+	Why it's needed: When the user wants to buy a service or provide their information, use this tool to securely store all the details at once.
 	"""
 	if not session_id:
 		return "ERROR: session_id is missing."
+	
+	if not data:
+		return "ERROR: No data provided to save."
 	
 	query = """
 		INSERT INTO collected_data (session_id, key, value)
 		VALUES (?, ?, ?)
 	"""
+	saved_keys = []
 	try:
 		with get_connection() as conn:
-			conn.execute(query, (session_id, key, value))
+			for key, value in data.items():
+				conn.execute(query, (session_id, key, value))
+				saved_keys.append(key)
 			conn.commit()
-		return f"Successfully saved {key}."
+		return f"Successfully saved: {', '.join(saved_keys)}."
 	except Exception as e:
 		return f"ERROR: Could not save information: {str(e)}"
 
 
 class SendVerificationEmailInput(BaseModel):
 	email: str
+	session_id: str = "" # Injected by the system, LLM does not need to provide this.
 
 
 @tool(args_schema=SendVerificationEmailInput)
-def send_verification_email(email: str) -> str:
+def send_verification_email(email: str, session_id: str = "") -> str:
 	"""
 	Generate a temporary password (verification code) and send it to the user's email.
 	
@@ -78,11 +85,15 @@ def send_verification_email(email: str) -> str:
 	# Generate 6-character random code
 	code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 	
-	# Save to DB
-	query = "INSERT INTO user_auth_codes (email, code) VALUES (?, ?)"
+	# Save to DB (user_auth_codes and collected_data)
+	auth_query = "INSERT INTO user_auth_codes (email, code) VALUES (?, ?)"
+	collected_query = "INSERT INTO collected_data (session_id, key, value) VALUES (?, ?, ?)"
+	
 	try:
 		with get_connection() as conn:
-			conn.execute(query, (email, code))
+			conn.execute(auth_query, (email, code))
+			if session_id:
+				conn.execute(collected_query, (session_id, "Temporary Password", code))
 			conn.commit()
 	except Exception as e:
 		return f"ERROR: Could not save verification code: {str(e)}"
@@ -96,7 +107,7 @@ def send_verification_email(email: str) -> str:
 				"from": f"RT Communication <{RESEND_FROM_EMAIL}>",
 				"to": [email],
 				"subject": "RT Communication Verification Code",
-				"text": f"Hello,\n\nYour temporary password / verification code is: {code}\n\nThank you,\nRT Communication"
+				"text": f"Hello,\n\nYour temporary password is: {code}\n\nIMPORTANT: This is a temporary password, and you need to change it immediately after you log in.\n\nThank you,\nRT Communication"
 			}
 			resend.Emails.send(params)
 			return "Verification code successfully sent to email."
