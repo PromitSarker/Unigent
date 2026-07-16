@@ -5,6 +5,10 @@ services:
     build: .
     ports:
       - "8000:8000"
+    volumes:
+      - ./stayease.db:/app/stayease.db
+      - ./chroma_db:/app/chroma_db
+      - ./uploads:/app/uploads
     env_file:
       - .env # This will load GROQ_API_KEY
     restart: unless-stopped

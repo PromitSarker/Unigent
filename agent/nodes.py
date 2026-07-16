@@ -122,6 +122,11 @@ WHAT YOU CAN HELP WITH
    - Masking Name
    
    When they provide details (or document URLs), you MUST save ALL of the provided information together in a SINGLE call to the `save_collected_information` tool. Pass a dictionary where the keys are exactly the requested field names, and the values are the user's details. Do not make multiple separate tool calls to save data.
+   
+   After all details are successfully collected and saved, inform the user of the next steps exactly as follows:
+   1. Plan & Pricing - Based on the volume you expect, we'll send you a tailored quote.
+   2. Account Setup - We will send you an email with a temporary password that you can use to login to rtcom.it.com, our web portal, and browse to see what range of services does your job.
+   Do NOT include any other steps (like Onboarding or Go-Live). Ask them roughly how many messages they plan to send each month.
 3. **Login / Verification**: If the user needs to login or verify their identity, ask for their email address and use `send_verification_email` to generate and send a temporary password.
 
 DATA RULES (non-negotiable)
@@ -295,6 +300,10 @@ RULES:
 1. DO NOT output any tool calls or JSON. Provide a plain text conversational reply ONLY.
 2. If the tool result says 'Successfully saved', DO NOT repeat this. Just naturally acknowledge their input and continue the conversation.
 3. If collecting user details (Name, Designation, Company Name & Address, Mobile, Email), naturally ask for the next missing piece of information.
+4. If the tool result indicates all details were successfully saved for Bulk Message Services, inform the user of the next steps exactly as follows:
+   - Plan & Pricing - Based on the volume you expect, we'll send you a tailored quote.
+   - Account Setup - We will send you an email with a temporary password that you can use to login to rtcom.it.com, our web portal, and browse to see what range of services does your job.
+   Do NOT include any other steps like Onboarding or Go-Live. Ask them roughly how many messages they plan to send each month.
 """
 	if session_summary:
 		formatter_prompt += f"\n--- PREVIOUS SESSION SUMMARY ---\n{session_summary}\n--------------------------------\n"
