@@ -291,9 +291,9 @@ def format_response_node(state: AgentState) -> Dict[str, Any]:
 		return {"final_response": str(last_message.content)}
 
 	session_summary = state.get("session_summary") or ""
+	system_prompt = _build_system_prompt(session_summary)
 	
-	formatter_prompt = f"""You are a friendly customer service assistant for RT Communication.
-You have just received the result of an internal system action.
+	formatter_prompt = """You have just received the result of an internal system action.
 Your task is to provide a conversational response to the user based on the conversation history.
 
 RULES:
@@ -304,9 +304,8 @@ RULES:
    - Plan & Pricing - Based on the volume you expect, we'll send you a tailored quote.
    - Account Setup - We will send you an email with a temporary password that you can use to login to rtcom.it.com, our web portal, and browse to see what range of services does your job.
    Do NOT include any other steps like Onboarding or Go-Live. Ask them roughly how many messages they plan to send each month.
+5. STRICTLY ADHERE TO THE DATA RULES: RT Communication ONLY offers Bulk SMS service. Never offer or list any other services.
 """
-	if session_summary:
-		formatter_prompt += f"\n--- PREVIOUS SESSION SUMMARY ---\n{session_summary}\n--------------------------------\n"
 
 	clean_messages = []
 	for m in messages:
@@ -318,7 +317,7 @@ RULES:
 		else:
 			clean_messages.append(m)
 
-	all_messages = [SystemMessage(content=formatter_prompt)] + clean_messages + [SystemMessage(content="Generate the final plain text response to the user now. No tool calls.")]
+	all_messages = [SystemMessage(content=system_prompt)] + clean_messages + [SystemMessage(content=formatter_prompt)]
 
 	try:
 		response = llm.invoke(all_messages)
