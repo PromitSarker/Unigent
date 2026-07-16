@@ -124,9 +124,9 @@ WHAT YOU CAN HELP WITH
    When they provide details (or document URLs), you MUST save ALL of the provided information together in a SINGLE call to the `save_collected_information` tool. Pass a dictionary where the keys are exactly the requested field names, and the values are the user's details. Do not make multiple separate tool calls to save data.
    
    After all details are successfully collected and saved, inform the user of the next steps exactly as follows:
-   1. Plan & Pricing - Based on the volume you expect, we'll send you a tailored quote.
+   1. Plan & Pricing - You can check our website to find out which plan suits you.
    2. Account Setup - We will send you an email with a temporary password that you can use to login to rtcom.it.com, our web portal, and browse to see what range of services does your job.
-   Do NOT include any other steps (like Onboarding or Go-Live). Ask them roughly how many messages they plan to send each month.
+   Do NOT include any other steps (like Onboarding or Go-Live). Do NOT ask how many messages they plan to send each month.
 3. **Login / Verification**: If the user needs to login or verify their identity, ask for their email address and use `send_verification_email` to generate and send a temporary password.
 
 DATA RULES (non-negotiable)
@@ -301,16 +301,19 @@ RULES:
 2. If the tool result says 'Successfully saved', DO NOT repeat this. Just naturally acknowledge their input and continue the conversation.
 3. If collecting user details (Name, Designation, Company Name & Address, Mobile, Email), naturally ask for the next missing piece of information.
 4. If the tool result indicates all details were successfully saved for Bulk Message Services, inform the user of the next steps exactly as follows:
-   - Plan & Pricing - Based on the volume you expect, we'll send you a tailored quote.
+   - Plan & Pricing - You can check our website to find out which plan suits you.
    - Account Setup - We will send you an email with a temporary password that you can use to login to rtcom.it.com, our web portal, and browse to see what range of services does your job.
-   Do NOT include any other steps like Onboarding or Go-Live. Ask them roughly how many messages they plan to send each month.
+   Do NOT include any other steps like Onboarding or Go-Live. Do NOT ask how many messages they plan to send each month.
 5. STRICTLY ADHERE TO THE DATA RULES: RT Communication ONLY offers Bulk SMS service. Never offer or list any other services.
 """
 
 	clean_messages = []
 	for m in messages:
 		if isinstance(m, ToolMessage):
-			clean_messages.append(SystemMessage(content=f"Tool Result: {m.content}"))
+			content = str(m.content)
+			if "Successfully saved" in content:
+				content = "The user's details were securely saved to the database. Acknowledge this naturally and proceed to the next step."
+			clean_messages.append(SystemMessage(content=f"System Info: {content}"))
 		elif isinstance(m, AIMessage):
 			clean_content = str(m.content) if m.content else ""
 			clean_messages.append(AIMessage(content=clean_content.strip() or "Processed action."))
@@ -324,7 +327,10 @@ RULES:
 		final_text = str(getattr(response, "content", "")).strip()
 		
 		if not final_text:
-			return {"final_response": str(last_message.content)}
+			# Fallback if LLM returns empty
+			if "Successfully saved" in str(last_message.content):
+				return {"final_response": "I've recorded that information. Let's move forward."}
+			return {"final_response": "I have the information."}
 		
 		return {
 			"messages": [response],
@@ -332,7 +338,9 @@ RULES:
 		}
 	except Exception as e:
 		print(f"ERROR in format_response_node: {e}")
-		return {"final_response": str(last_message.content)}
+		if "Successfully saved" in str(last_message.content):
+			return {"final_response": "I've recorded that information. Let's move forward."}
+		return {"final_response": "I have the information."}
 
 
 def escalate_to_human_node(state: AgentState) -> Dict[str, Any]:
