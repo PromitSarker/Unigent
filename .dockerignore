@@ -1,0 +1,13 @@
+node_modules/
+.git/
+.venv/
+__pycache__/
+*.pyc
+chroma_db/
+uploads/
+stayease.db
+.env
+frontend/node_modules/
+admin-frontend/node_modules/
+frontend/dist/
+admin-frontend/dist/
