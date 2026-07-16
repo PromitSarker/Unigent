@@ -1,11 +1,21 @@
 import os
 import sqlite3
+import shutil
 from contextlib import contextmanager
 from typing import Generator
 
 from agent.config import DB_FILE
 
 def initialize_db():
+    parent_dir = os.path.dirname(DB_FILE)
+    if parent_dir and not os.path.exists(parent_dir):
+        os.makedirs(parent_dir, exist_ok=True)
+        
+    old_db_path = os.path.join(os.path.dirname(__file__), "..", "stayease.db")
+    if not os.path.exists(DB_FILE) and os.path.exists(old_db_path):
+        print(f"Migrating database from {old_db_path} to {DB_FILE}")
+        shutil.copy2(old_db_path, DB_FILE)
+
     if not os.path.exists(DB_FILE):
         print(f"Initializing database {DB_FILE} from schema...")
         

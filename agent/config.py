@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DB_FILE = (getenv("DB_FILE") or "stayease.db").strip()
+DB_FILE = (getenv("DB_FILE") or "data/stayease.db").strip()
 GROQ_API_KEY = (getenv("GROQ_API_KEY") or "").strip()
 GROQ_MODEL = (getenv("GROQ_MODEL") or "llama-3.3-70b-versatile").strip()
 
