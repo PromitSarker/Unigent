@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, MessageSquarePlus, MessageSquare } from 'lucide-react';
+import { Send, MessageSquarePlus, MessageSquare, Paperclip, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 const generateUUID = () => {
@@ -14,7 +14,9 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     // Generate a new session ID when the app loads
@@ -77,6 +79,53 @@ function App() {
     }
   };
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) throw new Error('Upload failed');
+      
+      const data = await response.json();
+      
+      // Auto-send a message with the file URL
+      const fileMessage = `Here is my document: ${data.url}`;
+      
+      const userMessage = { role: 'user', content: fileMessage };
+      setMessages((prev) => [...prev, userMessage]);
+      setIsLoading(true);
+
+      const chatResponse = await fetch(`/api/chat/${conversationId}/message`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: fileMessage }),
+      });
+
+      if (!chatResponse.ok) throw new Error('Failed to get chat response');
+      const chatData = await chatResponse.json();
+      
+      setMessages((prev) => [...prev, { role: 'assistant', content: chatData.assistant_response }]);
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      setMessages((prev) => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error uploading your file.' }]);
+    } finally {
+      setIsUploading(false);
+      setIsLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="app-container">
       <header className="header">
@@ -125,17 +174,34 @@ function App() {
       <div className="input-container">
         <form className="input-form" onSubmit={handleSend}>
           <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            onChange={handleFileUpload}
+            accept="image/*,.pdf,.doc,.docx"
+          />
+          <button
+            type="button"
+            className="attachment-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading || isUploading}
+            title="Upload Document"
+          >
+            {isUploading ? <Loader2 size={20} className="spin" /> : <Paperclip size={20} />}
+          </button>
+          
+          <input
             type="text"
             className="chat-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your message here..."
-            disabled={isLoading}
+            disabled={isLoading || isUploading}
           />
           <button 
             type="submit" 
             className="send-btn" 
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || isUploading}
           >
             <Send size={18} />
           </button>

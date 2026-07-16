@@ -155,10 +155,20 @@ function LeadsView() {
 
   const getPivotedData = () => {
     const sessionMap = {};
-    const keysSet = new Set();
+    const exactColumns = [
+      'Type',
+      'Name',
+      'Designation',
+      'Company Name & Address',
+      'Mobile',
+      'Email',
+      'Trade License',
+      'NID',
+      'Passport Size Photo',
+      'Masking Name'
+    ];
     
     leads.forEach(lead => {
-      keysSet.add(lead.key);
       if (!sessionMap[lead.session_id]) {
         sessionMap[lead.session_id] = { session_id: lead.session_id, last_collected: lead.created_at };
       }
@@ -168,13 +178,20 @@ function LeadsView() {
       }
     });
 
-    const columns = Array.from(keysSet).sort();
     const rows = Object.values(sessionMap).sort((a, b) => new Date(b.last_collected) - new Date(a.last_collected));
     
-    return { columns, rows };
+    return { columns: exactColumns, rows };
   };
 
   const { columns, rows } = getPivotedData();
+
+  const renderCell = (value) => {
+    if (!value) return <span style={{color: 'var(--text-muted)'}}>-</span>;
+    if (value.startsWith('http')) {
+      return <a href={value} target="_blank" rel="noopener noreferrer" style={{color: 'var(--primary-light)', textDecoration: 'underline'}}>View Document</a>;
+    }
+    return value;
+  };
 
   return (
     <div className="fade-in">
@@ -192,7 +209,7 @@ function LeadsView() {
               <tr>
                 <th>Session ID</th>
                 {columns.map(col => (
-                  <th key={col}>{col.replace(/_/g, ' ')}</th>
+                  <th key={col}>{col}</th>
                 ))}
                 <th>Last Collected</th>
               </tr>
@@ -202,7 +219,7 @@ function LeadsView() {
                 <tr key={idx}>
                   <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{row.session_id.substring(0, 13)}...</td>
                   {columns.map(col => (
-                    <td key={col}>{row[col] || <span style={{color: 'var(--text-muted)'}}>-</span>}</td>
+                    <td key={col}>{renderCell(row[col])}</td>
                   ))}
                   <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     {new Date(row.last_collected).toLocaleString()}
