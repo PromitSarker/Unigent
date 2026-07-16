@@ -14,6 +14,9 @@ COPY requirements.txt .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-download huggingface embedding model to avoid runtime downloads and 504 errors
+RUN python -c "from langchain_huggingface import HuggingFaceEmbeddings; HuggingFaceEmbeddings(model_name='all-MiniLM-L6-v2')"
+
 # Copy the rest of the application code
 COPY . .
 
