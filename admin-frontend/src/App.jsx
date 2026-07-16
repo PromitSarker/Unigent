@@ -153,6 +153,29 @@ function LeadsView() {
       });
   }, []);
 
+  const getPivotedData = () => {
+    const sessionMap = {};
+    const keysSet = new Set();
+    
+    leads.forEach(lead => {
+      keysSet.add(lead.key);
+      if (!sessionMap[lead.session_id]) {
+        sessionMap[lead.session_id] = { session_id: lead.session_id, last_collected: lead.created_at };
+      }
+      sessionMap[lead.session_id][lead.key] = lead.value;
+      if (new Date(lead.created_at) > new Date(sessionMap[lead.session_id].last_collected)) {
+        sessionMap[lead.session_id].last_collected = lead.created_at;
+      }
+    });
+
+    const columns = Array.from(keysSet).sort();
+    const rows = Object.values(sessionMap).sort((a, b) => new Date(b.last_collected) - new Date(a.last_collected));
+    
+    return { columns, rows };
+  };
+
+  const { columns, rows } = getPivotedData();
+
   return (
     <div className="fade-in">
       <div className="page-header">
@@ -168,27 +191,27 @@ function LeadsView() {
             <thead>
               <tr>
                 <th>Session ID</th>
-                <th>Field Name</th>
-                <th>Value</th>
-                <th>Collected At</th>
+                {columns.map(col => (
+                  <th key={col}>{col.replace(/_/g, ' ')}</th>
+                ))}
+                <th>Last Collected</th>
               </tr>
             </thead>
             <tbody>
-              {leads.map((lead, idx) => (
+              {rows.map((row, idx) => (
                 <tr key={idx}>
-                  <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{lead.session_id.substring(0, 13)}...</td>
-                  <td>
-                    <span style={{ fontWeight: '500', color: 'var(--primary-light)' }}>{lead.key}</span>
-                  </td>
-                  <td>{lead.value}</td>
+                  <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{row.session_id.substring(0, 13)}...</td>
+                  {columns.map(col => (
+                    <td key={col}>{row[col] || <span style={{color: 'var(--text-muted)'}}>-</span>}</td>
+                  ))}
                   <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    {new Date(lead.created_at).toLocaleString()}
+                    {new Date(row.last_collected).toLocaleString()}
                   </td>
                 </tr>
               ))}
-              {leads.length === 0 && (
+              {rows.length === 0 && (
                 <tr>
-                  <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No collected leads found.</td>
+                  <td colSpan={columns.length + 2} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No collected leads found.</td>
                 </tr>
               )}
             </tbody>
