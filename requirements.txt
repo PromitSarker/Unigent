@@ -11,3 +11,6 @@ uvicorn
 pydantic
 python-dotenv
 resend
+python-multipart
+pypdf
+langchain-chroma

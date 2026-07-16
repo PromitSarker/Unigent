@@ -244,6 +244,7 @@ function KnowledgeBaseView() {
   const [loading, setLoading] = useState(true);
   const [docText, setDocText] = useState('');
   const [docMetadata, setDocMetadata] = useState('');
+  const [pdfFile, setPdfFile] = useState(null);
   const [pushing, setPushing] = useState(false);
   const [message, setMessage] = useState(null);
 
@@ -267,28 +268,49 @@ function KnowledgeBaseView() {
 
   const handlePush = async (e) => {
     e.preventDefault();
-    if (!docText.trim()) return;
+    if (!docText.trim() && !pdfFile) return;
     
     setPushing(true);
     setMessage(null);
     
     try {
-      let meta = {};
-      if (docMetadata.trim()) {
-        meta = JSON.parse(docMetadata);
+      if (pdfFile) {
+        // Handle PDF upload
+        const formData = new FormData();
+        formData.append('file', pdfFile);
+        if (docMetadata.trim()) {
+          formData.append('metadata_str', docMetadata);
+        }
+
+        const res = await fetch('/api/documents/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!res.ok) throw new Error('Failed to push PDF document');
+      } else {
+        // Handle plain text
+        let meta = {};
+        if (docMetadata.trim()) {
+          meta = JSON.parse(docMetadata);
+        }
+        
+        const res = await fetch('/api/documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: docText, metadata: meta })
+        });
+        
+        if (!res.ok) throw new Error('Failed to push document');
       }
-      
-      const res = await fetch('/api/documents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: docText, metadata: meta })
-      });
-      
-      if (!res.ok) throw new Error('Failed to push document');
       
       setMessage({ type: 'success', text: 'Document successfully pushed to ChromaDB!' });
       setDocText('');
       setDocMetadata('');
+      setPdfFile(null);
+      // Reset file input element
+      const fileInput = document.getElementById('pdf-upload');
+      if (fileInput) fileInput.value = '';
       fetchDocs();
     } catch (err) {
       setMessage({ type: 'error', text: err.message || 'Error parsing metadata or pushing.' });
@@ -323,14 +345,26 @@ function KnowledgeBaseView() {
           
           <form onSubmit={handlePush}>
             <div className="input-group">
-              <label>Document Content</label>
+              <label>Upload PDF Document (Optional)</label>
+              <input 
+                id="pdf-upload"
+                type="file" 
+                accept=".pdf"
+                onChange={(e) => setPdfFile(e.target.files[0])}
+                style={{ marginBottom: '12px', fontSize: '0.9rem' }}
+              />
+            </div>
+
+            <div className="input-group">
+              <label>Or Enter Document Content Manually</label>
               <textarea 
                 className="input-field" 
                 rows="6" 
                 placeholder="Enter FAQ or knowledge base information..."
                 value={docText}
                 onChange={(e) => setDocText(e.target.value)}
-                required
+                required={!pdfFile}
+                disabled={!!pdfFile}
                 style={{ resize: 'vertical' }}
               />
             </div>
@@ -361,7 +395,7 @@ function KnowledgeBaseView() {
               </div>
             )}
             
-            <button type="submit" className="btn" style={{ width: '100%' }} disabled={pushing || !docText.trim()}>
+            <button type="submit" className="btn" style={{ width: '100%' }} disabled={pushing || (!docText.trim() && !pdfFile)}>
               <Send size={18} />
               {pushing ? 'Pushing to DB...' : 'Push Document'}
             </button>

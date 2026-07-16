@@ -1,5 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
+import json
+from pypdf import PdfReader
 
 from agent.rag import add_document, delete_document, list_documents
 
@@ -34,6 +36,39 @@ def create_document(payload: DocumentCreateRequest) -> DocumentResponse:
 		return DocumentResponse(id=doc_id, status="created")
 	except Exception as e:
 		raise HTTPException(status_code=500, detail=f"Failed to add document: {str(e)}")
+
+@router.post("/upload", response_model=DocumentResponse)
+async def upload_document(file: UploadFile = File(...), metadata_str: str = Form(None)) -> DocumentResponse:
+	if not file.filename.lower().endswith(".pdf"):
+		raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+	
+	try:
+		# Parse optional metadata
+		metadata = {}
+		if metadata_str:
+			try:
+				metadata = json.loads(metadata_str)
+			except json.JSONDecodeError:
+				raise HTTPException(status_code=400, detail="Invalid JSON in metadata.")
+
+		# Extract text from PDF
+		reader = PdfReader(file.file)
+		text_content = []
+		for page in reader.pages:
+			text = page.extract_text()
+			if text:
+				text_content.append(text)
+		
+		full_text = "\n".join(text_content)
+		if not full_text.strip():
+			raise HTTPException(status_code=400, detail="Failed to extract any text from the PDF.")
+			
+		doc_id = add_document(full_text, metadata)
+		return DocumentResponse(id=doc_id, status="created from PDF")
+	except HTTPException:
+		raise
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"Failed to process PDF document: {str(e)}")
 
 @router.delete("/{doc_id}")
 def remove_document(doc_id: str):
