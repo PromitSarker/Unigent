@@ -48,3 +48,23 @@ def search_documents(query: str, k: int = 3) -> str:
 		formatted.append(f"Result {i}:\n{doc.page_content}")
 	
 	return "\n\n".join(formatted)
+
+def list_documents() -> List[dict]:
+	"""Returns all documents from the vector store."""
+	results = _vectorstore.get()
+	documents = []
+	
+	if not results or "ids" not in results:
+		return documents
+		
+	for i in range(len(results["ids"])):
+		doc_id = results["ids"][i]
+		text = results["documents"][i] if "documents" in results and results["documents"] else ""
+		metadata = results["metadatas"][i] if "metadatas" in results and results["metadatas"] else {}
+		documents.append({
+			"id": doc_id,
+			"text": text,
+			"metadata": metadata
+		})
+	
+	return documents

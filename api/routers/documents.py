@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from agent.rag import add_document, delete_document
+from agent.rag import add_document, delete_document, list_documents
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -12,6 +12,17 @@ class DocumentCreateRequest(BaseModel):
 class DocumentResponse(BaseModel):
 	id: str
 	status: str
+
+class DocumentListResponse(BaseModel):
+	documents: list[dict]
+
+@router.get("", response_model=DocumentListResponse)
+def get_documents() -> DocumentListResponse:
+	try:
+		docs = list_documents()
+		return DocumentListResponse(documents=docs)
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=f"Failed to fetch documents: {str(e)}")
 
 @router.post("", response_model=DocumentResponse)
 def create_document(payload: DocumentCreateRequest) -> DocumentResponse:

@@ -16,3 +16,11 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+
+  admin-frontend:
+    build: ./admin-frontend
+    ports:
+      - "3001:80"
+    restart: unless-stopped
+    depends_on:
+      - api
