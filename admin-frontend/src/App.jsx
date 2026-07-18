@@ -50,6 +50,7 @@ function Sidebar({ activeTab, setActiveTab }) {
 function DashboardView() {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedSummary, setSelectedSummary] = useState(null);
 
   useEffect(() => {
     fetch('/api/admin/conversations')
@@ -119,8 +120,21 @@ function DashboardView() {
                       <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.2)', color: 'var(--success)' }}>Active</span>
                     )}
                   </td>
-                  <td style={{ maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {conv.session_summary || 'No summary'}
+                  <td style={{ maxWidth: '300px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, marginRight: '8px' }}>
+                        {conv.session_summary || 'No summary'}
+                      </span>
+                      {conv.session_summary && (
+                        <button 
+                          className="btn" 
+                          style={{ padding: '4px 10px', fontSize: '0.75rem', flexShrink: 0 }}
+                          onClick={() => setSelectedSummary(conv.session_summary)}
+                        >
+                          View
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     {new Date(conv.last_updated).toLocaleString()}
@@ -136,6 +150,21 @@ function DashboardView() {
           </table>
         )}
       </div>
+
+      {selectedSummary && (
+        <div className="modal-overlay" onClick={() => setSelectedSummary(null)}>
+          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%', maxHeight: '80vh', overflowY: 'auto' }}>
+            <h3 style={{ marginBottom: '16px' }}>Conversation Summary</h3>
+            <div 
+              style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', color: 'var(--text-main)', fontSize: '0.95rem' }}
+              dangerouslySetInnerHTML={{ __html: selectedSummary.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
+            />
+            <div style={{ marginTop: '24px', textAlign: 'right' }}>
+              <button className="btn" onClick={() => setSelectedSummary(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
