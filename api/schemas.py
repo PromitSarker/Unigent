@@ -34,6 +34,7 @@ class HistorySummary(BaseModel):
 	total_messages: int
 	last_intent: Optional[Literal["inquiry", "lead", "escalate"]] = None
 	escalate: bool
+	session_summary: Optional[str] = None
 
 
 class ConversationHistoryResponse(BaseModel):

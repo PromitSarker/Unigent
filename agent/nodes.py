@@ -362,10 +362,7 @@ def escalate_to_human_node(state: AgentState) -> Dict[str, Any]:
 def summarize_conversation_node(state: AgentState) -> Dict[str, Any]:
 	"""Summarizes the conversation to maintain a rolling context."""
 	messages = state.get("messages", [])
-	# Only summarize if there are a reasonable number of messages
-	if len(messages) < 6:
-		return {}
-		
+	# Removed length check so short recent conversations are summarized
 	session_id = state.get("conversation_id")
 	if not session_id:
 		return {}

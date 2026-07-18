@@ -170,6 +170,7 @@ def get_history(conversation_id: str) -> ConversationHistoryResponse:
 		messages = conversation_store.get_messages(conversation_id)
 		last_intent = conversation_store.get_last_intent(conversation_id)
 		escalate = conversation_store.get_escalate(conversation_id)
+		session_summary = conversation_store.get_session_summary(conversation_id)
 	except Exception:
 		raise HTTPException(
 			status_code=500,
@@ -189,5 +190,6 @@ def get_history(conversation_id: str) -> ConversationHistoryResponse:
 			total_messages=len(messages),
 			last_intent=last_intent,  # type: ignore[arg-type]
 			escalate=escalate,
+			session_summary=session_summary,
 		),
 	)
