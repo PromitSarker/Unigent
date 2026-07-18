@@ -49,15 +49,13 @@ def save_collected_information(data: Dict[str, str], session_id: str = "") -> st
 	if not data:
 		return "ERROR: No data provided to save."
 	
-	query = """
-		INSERT INTO collected_data (session_id, key, value)
-		VALUES (?, ?, ?)
-	"""
 	saved_keys = []
 	try:
 		with get_connection() as conn:
 			for key, value in data.items():
-				conn.execute(query, (session_id, key, value))
+				cur = conn.execute("UPDATE collected_data SET value = ?, created_at = CURRENT_TIMESTAMP WHERE session_id = ? AND key = ?", (value, session_id, key))
+				if cur.rowcount == 0:
+					conn.execute("INSERT INTO collected_data (session_id, key, value) VALUES (?, ?, ?)", (session_id, key, value))
 				saved_keys.append(key)
 			conn.commit()
 		return f"Successfully saved: {', '.join(saved_keys)}."
