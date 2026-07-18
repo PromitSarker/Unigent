@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, MessageSquarePlus, MessageSquare, Paperclip, Loader2 } from 'lucide-react';
+import { Send, MessageSquarePlus, MessageSquare, Paperclip, Loader2, Phone, PhoneOff, Mic, MicOff } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 const generateUUID = () => {
@@ -15,8 +15,12 @@ function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   useEffect(() => {
     // Generate a new session ID when the app loads
@@ -67,6 +71,11 @@ function App() {
       };
       
       setMessages((prev) => [...prev, assistantMessage]);
+      
+      // If in voice mode, speak the response
+      if (isVoiceMode) {
+        playTTS(data.assistant_response);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage = { 
@@ -74,6 +83,101 @@ function App() {
         content: 'Sorry, I encountered an error while processing your request.' 
       };
       setMessages((prev) => [...prev, errorMessage]);
+      if (isVoiceMode) playTTS(errorMessage.content);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const playTTS = (text) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const cleanText = text.replace(/[*#_`~]/g, '');
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    const voices = window.speechSynthesis.getVoices();
+    const englishVoices = voices.filter(v => v.lang.startsWith('en'));
+    const goodVoice = englishVoices.find(v => v.name.includes('Google') || v.name.includes('Female')) || englishVoices[0] || voices[0];
+    if(goodVoice) utterance.voice = goodVoice;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const toggleVoiceMode = () => {
+    setIsVoiceMode(!isVoiceMode);
+    if (isRecording) stopRecording();
+    window.speechSynthesis.cancel();
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorderRef.current.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        stream.getTracks().forEach(track => track.stop());
+        await processAudio(audioBlob);
+      };
+
+      window.speechSynthesis.cancel(); // Stop AI speaking when user starts
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Microphone access error", err);
+      alert("Microphone access denied or unavailable.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(true); // visual cue until processing finishes
+  };
+
+  const processAudio = async (audioBlob) => {
+    setIsLoading(true);
+    setIsRecording(false);
+    try {
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'audio.webm');
+      
+      const sttResponse = await fetch('/api/voice/transcribe', {
+        method: 'POST',
+        body: formData
+      });
+      if (!sttResponse.ok) throw new Error('Transcription failed');
+      const { text } = await sttResponse.json();
+      
+      if (!text || text.trim().length === 0) {
+        setIsLoading(false);
+        return;
+      }
+      
+      const userMessage = { role: 'user', content: text };
+      setMessages((prev) => [...prev, userMessage]);
+      
+      const chatResponse = await fetch(`/api/chat/${conversationId}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      
+      if (!chatResponse.ok) throw new Error('Chat failed');
+      const chatData = await chatResponse.json();
+      
+      setMessages((prev) => [...prev, { role: 'assistant', content: chatData.assistant_response }]);
+      if (isVoiceMode) playTTS(chatData.assistant_response);
+      
+    } catch (err) {
+      console.error(err);
+      const errMsg = "Sorry, voice processing failed.";
+      setMessages((prev) => [...prev, { role: 'assistant', content: errMsg }]);
+      if (isVoiceMode) playTTS(errMsg);
     } finally {
       setIsLoading(false);
     }
@@ -132,10 +236,16 @@ function App() {
         <div className="header-brand">
           <img src="/logo.png" alt="RT Communications Logo" className="brand-logo" />
         </div>
-        <button className="new-chat-btn" onClick={handleNewChat}>
-          <MessageSquarePlus size={18} />
-          New Chat
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button className={`new-chat-btn ${isVoiceMode ? 'active-voice-btn' : ''}`} onClick={toggleVoiceMode} style={{ backgroundColor: isVoiceMode ? '#ef4444' : '' }}>
+            {isVoiceMode ? <PhoneOff size={18} /> : <Phone size={18} />}
+            {isVoiceMode ? 'End Call' : 'Call'}
+          </button>
+          <button className="new-chat-btn" onClick={handleNewChat}>
+            <MessageSquarePlus size={18} />
+            New Chat
+          </button>
+        </div>
       </header>
 
       <main className="chat-container">
@@ -172,40 +282,63 @@ function App() {
       </main>
 
       <div className="input-container">
-        <form className="input-form" onSubmit={handleSend}>
-          <input
-            type="file"
-            ref={fileInputRef}
-            style={{ display: 'none' }}
-            onChange={handleFileUpload}
-            accept="image/*,.pdf,.doc,.docx"
-          />
-          <button
-            type="button"
-            className="attachment-btn"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading || isUploading}
-            title="Upload Document"
-          >
-            {isUploading ? <Loader2 size={20} className="spin" /> : <Paperclip size={20} />}
-          </button>
-          
-          <input
-            type="text"
-            className="chat-input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message here..."
-            disabled={isLoading || isUploading}
-          />
-          <button 
-            type="submit" 
-            className="send-btn" 
-            disabled={!input.trim() || isLoading || isUploading}
-          >
-            <Send size={18} />
-          </button>
-        </form>
+        {isVoiceMode ? (
+          <div className="voice-controls" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px' }}>
+            <button 
+              onClick={isRecording ? stopRecording : startRecording}
+              className={`mic-button ${isRecording ? 'recording' : ''}`}
+              disabled={isLoading}
+              style={{
+                width: '80px', height: '80px', borderRadius: '50%',
+                backgroundColor: isRecording ? '#ef4444' : '#4f46e5',
+                color: 'white', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer',
+                display: 'flex', justifyContent: 'center', alignItems: 'center',
+                boxShadow: isRecording ? '0 0 20px rgba(239, 68, 68, 0.6)' : '0 4px 12px rgba(79, 70, 229, 0.4)',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              {isRecording ? <MicOff size={32} /> : <Mic size={32} />}
+            </button>
+            <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '0.9rem' }}>
+              {isLoading ? "Thinking..." : isRecording ? "Tap to Stop & Send" : "Tap to Speak"}
+            </p>
+          </div>
+        ) : (
+          <form className="input-form" onSubmit={handleSend}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: 'none' }}
+              onChange={handleFileUpload}
+              accept="image/*,.pdf,.doc,.docx"
+            />
+            <button
+              type="button"
+              className="attachment-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading || isUploading}
+              title="Upload Document"
+            >
+              {isUploading ? <Loader2 size={20} className="spin" /> : <Paperclip size={20} />}
+            </button>
+            
+            <input
+              type="text"
+              className="chat-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your message here..."
+              disabled={isLoading || isUploading}
+            />
+            <button 
+              type="submit" 
+              className="send-btn" 
+              disabled={!input.trim() || isLoading || isUploading}
+            >
+              <Send size={18} />
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

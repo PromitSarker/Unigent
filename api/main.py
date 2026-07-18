@@ -4,6 +4,7 @@ from api.routers.chat import router as chat_router
 from api.routers.documents import router as documents_router
 from api.routers.admin import router as admin_router
 from api.routers.upload import router as upload_router
+from api.routers.voice import router as voice_router
 
 from fastapi.staticfiles import StaticFiles
 import os
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
 	app.include_router(documents_router, prefix="/api")
 	app.include_router(admin_router, prefix="/api")
 	app.include_router(upload_router, prefix="/api")
+	app.include_router(voice_router, prefix="/api")
 	
 	uploads_dir = os.path.join(os.path.dirname(__file__), "..", "uploads")
 	os.makedirs(uploads_dir, exist_ok=True)
