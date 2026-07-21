@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-import httpx
-from agent.config import GROQ_API_KEY
+import google.generativeai as genai
+from agent.config import GEMINI_API_KEY, GEMINI_MODEL
 import os
 import tempfile
 
@@ -8,9 +8,11 @@ router = APIRouter(prefix="/voice", tags=["voice"])
 
 @router.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
-    """Transcribes an uploaded audio file using Groq Whisper API"""
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not configured")
+    """Transcribes an uploaded audio file using Gemini API"""
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured")
+
+    genai.configure(api_key=GEMINI_API_KEY)
 
     # Read file contents
     content = await file.read()
@@ -20,30 +22,31 @@ async def transcribe_audio(file: UploadFile = File(...)):
         temp_audio.write(content)
         temp_audio_path = temp_audio.name
 
+    audio_file = None
     try:
-        # Use httpx to call Groq Whisper API (OpenAI compatible)
-        async with httpx.AsyncClient() as client:
-            with open(temp_audio_path, "rb") as f:
-                files = {"file": (file.filename or "audio.webm", f, file.content_type or "audio/webm")}
-                data = {"model": "whisper-large-v3"}
-                headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-                
-                response = await client.post(
-                    "https://api.groq.com/openai/v1/audio/transcriptions",
-                    files=files,
-                    data=data,
-                    headers=headers,
-                    timeout=30.0
-                )
-                
-        if response.status_code != 200:
-            print(f"Groq API Error: {response.text}")
-            raise HTTPException(status_code=500, detail="Failed to transcribe audio")
-            
-        result = response.json()
-        return {"text": result.get("text", "")}
+        # Upload the file to Gemini API
+        audio_file = genai.upload_file(path=temp_audio_path)
+        
+        model = genai.GenerativeModel(GEMINI_MODEL)
+        response = model.generate_content([
+            "Please transcribe this audio file accurately. Return only the exact transcription text without any other comments.",
+            audio_file
+        ])
+        
+        return {"text": response.text}
+        
+    except Exception as e:
+        print(f"Gemini API Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to transcribe audio")
         
     finally:
+        # Clean up Gemini file
+        if audio_file:
+            try:
+                genai.delete_file(audio_file.name)
+            except Exception as cleanup_err:
+                print(f"Failed to delete Gemini file: {cleanup_err}")
+                
         # Clean up temp file
         if os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)

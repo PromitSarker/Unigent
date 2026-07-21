@@ -1,7 +1,7 @@
 langgraph
 langchain
 langchain-core
-langchain-groq
+langchain-google-genai
 langchain-community
 langchain-huggingface
 chromadb
@@ -14,3 +14,4 @@ resend
 python-multipart
 pypdf
 langchain-chroma
+google-generativeai

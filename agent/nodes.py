@@ -2,10 +2,10 @@ import re
 from datetime import date
 from typing import Any, Dict, List, Optional
 
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 
-from agent.config import GROQ_API_KEY, GROQ_MODEL
+from agent.config import GEMINI_API_KEY, GEMINI_MODEL
 from agent.state import AgentState
 from agent.tools import (
 	escalate,
@@ -43,14 +43,14 @@ def _get_llm_with_tools() -> Optional[Any]:
 	if _LLM_WITH_TOOLS is not None:
 		return _LLM_WITH_TOOLS
 
-	if not GROQ_API_KEY:
-		print("WARNING: GROQ_API_KEY is not set.")
+	if not GEMINI_API_KEY:
+		print("WARNING: GEMINI_API_KEY is not set.")
 		return None
 
 	try:
-		base = ChatGroq(
-			model=GROQ_MODEL,
-			api_key=GROQ_API_KEY,
+		base = ChatGoogleGenerativeAI(
+			model=GEMINI_MODEL,
+			api_key=GEMINI_API_KEY,
 			temperature=0,
 			max_retries=3,
 			timeout=60.0,
@@ -74,14 +74,14 @@ def _get_plain_llm() -> Optional[Any]:
 	if _LLM_PLAIN is not None:
 		return _LLM_PLAIN
 
-	if not GROQ_API_KEY:
-		print("WARNING: GROQ_API_KEY is not set.")
+	if not GEMINI_API_KEY:
+		print("WARNING: GEMINI_API_KEY is not set.")
 		return None
 
 	try:
-		_LLM_PLAIN = ChatGroq(
-			model=GROQ_MODEL,
-			api_key=GROQ_API_KEY,
+		_LLM_PLAIN = ChatGoogleGenerativeAI(
+			model=GEMINI_MODEL,
+			api_key=GEMINI_API_KEY,
 			temperature=0,
 			max_retries=3,
 			timeout=60.0,
