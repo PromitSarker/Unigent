@@ -37,7 +37,31 @@ def create_app() -> FastAPI:
 	os.makedirs(uploads_dir, exist_ok=True)
 	app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 	
+	@app.get("/api/test-llm")
+	def test_llm():
+		try:
+			from langchain_google_genai import ChatGoogleGenerativeAI
+			from agent.config import GEMINI_API_KEY, GEMINI_MODEL
+			
+			llm = ChatGoogleGenerativeAI(
+				model=GEMINI_MODEL,
+				api_key=GEMINI_API_KEY,
+			)
+			res = llm.invoke("Hello, are you there?")
+			return {
+				"status": "success", 
+				"response": res.content, 
+				"model": GEMINI_MODEL, 
+				"key_configured": bool(GEMINI_API_KEY)
+			}
+		except Exception as e:
+			import traceback
+			return {
+				"status": "error", 
+				"error": str(e), 
+				"traceback": traceback.format_exc()
+			}
+			
 	return app
-
 
 app = create_app()

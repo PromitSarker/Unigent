@@ -205,7 +205,7 @@ def call_model_node(state: AgentState) -> Dict[str, Any]:
 	except Exception as e:
 		print(f"ERROR in call_model_node: {e}")
 		return {
-			"final_response": "I had trouble processing that. Can you try again?",
+			"final_response": f"I had trouble processing that. Can you try again? (Error: {str(e)})",
 		}
 
 
