@@ -159,6 +159,20 @@ def _clean_response(text: str) -> str:
 	"""Strip any raw <function=...> markup the model may have leaked into content text."""
 	return _FUNCTION_TAG_RE.sub("", text).strip()
 
+def _extract_text(content: Any) -> str:
+	"""Safely extract plain text from LLM response content which might be a string or a list of blocks."""
+	if isinstance(content, str):
+		return content
+	if isinstance(content, list):
+		texts = []
+		for item in content:
+			if isinstance(item, dict) and "text" in item:
+				texts.append(item["text"])
+			elif isinstance(item, str):
+				texts.append(item)
+		return " ".join(texts)
+	return str(content)
+
 
 # Graph nodes
 
@@ -178,7 +192,7 @@ def call_model_node(state: AgentState) -> Dict[str, Any]:
 
 	try:
 		response = llm.invoke(messages)
-		raw_content = str(getattr(response, "content", "")).strip()
+		raw_content = _extract_text(getattr(response, "content", "")).strip()
 		
 		updates: Dict[str, Any] = {
 			"messages": [response],
@@ -316,7 +330,7 @@ RULES:
 				content = "The user's details were securely saved to the database. Acknowledge this naturally and proceed to the next step."
 			clean_messages.append(SystemMessage(content=f"System Info: {content}"))
 		elif isinstance(m, AIMessage):
-			clean_content = str(m.content) if m.content else ""
+			clean_content = _extract_text(m.content) if m.content else ""
 			clean_messages.append(AIMessage(content=clean_content.strip() or "Processed action."))
 		else:
 			clean_messages.append(m)
@@ -325,7 +339,7 @@ RULES:
 
 	try:
 		response = llm.invoke(all_messages)
-		final_text = str(getattr(response, "content", "")).strip()
+		final_text = _extract_text(getattr(response, "content", "")).strip()
 		
 		if not final_text:
 			# Fallback if LLM returns empty
