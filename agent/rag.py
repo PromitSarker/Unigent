@@ -26,12 +26,14 @@ def add_document(text: str, metadata: dict = None) -> str:
 	
 	doc = Document(page_content=text, metadata=metadata or {})
 	_vectorstore.add_documents(documents=[doc], ids=[doc_id])
+	_vectorstore.persist()
 	return doc_id
 
 def delete_document(doc_id: str) -> bool:
 	"""Deletes a document from the Chroma vector store by ID."""
 	try:
 		_vectorstore.delete(ids=[doc_id])
+		_vectorstore.persist()
 		return True
 	except ValueError:
 		# ID not found
