@@ -12,8 +12,9 @@ CHROMA_PERSIST_DIR = os.path.join(os.path.dirname(__file__), "..", "chroma_db")
 # Initialize embeddings
 try:
     _embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/text-embedding-004",
-        google_api_key=GEMINI_API_KEY
+        model="models/gemini-embedding-001",
+        google_api_key=GEMINI_API_KEY,
+        task_type="retrieval_document"
     )
 
     # Initialize Chroma vector store
@@ -55,7 +56,15 @@ def search_documents(query: str, k: int = 3) -> str:
 	"""Searches the vector store and returns a formatted string of results."""
 	if _vectorstore is None:
 		return "Vector store is offline."
-	results = _vectorstore.similarity_search(query, k=k)
+	# Use retrieval_query task type for queries (asymmetric RAG)
+	query_embeddings = GoogleGenerativeAIEmbeddings(
+		model="models/gemini-embedding-001",
+		google_api_key=GEMINI_API_KEY,
+		task_type="retrieval_query"
+	)
+	results = _vectorstore.similarity_search_by_vector(
+		query_embeddings.embed_query(query), k=k
+	)
 	if not results:
 		return "No relevant information found in the knowledge base."
 	
