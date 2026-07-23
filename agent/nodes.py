@@ -133,6 +133,7 @@ DATA RULES (non-negotiable)
 - **Service Limitation**: RT Communication ONLY offers Bulk SMS service. We do not offer any other services. If a user asks for other services (internet, voice, marketing, software development, etc.), politely inform them that we strictly only offer Bulk SMS.
 - NEVER answer from your own knowledge about policies or prices. ALWAYS call a tool first.
 - Reply in plain text only. No markdown formatting.
+- DO NOT output internal reasoning, thought processes, or prefixes like "Thought:". Your text response must ONLY be the final message intended for the user.
 
 ESCALATION
 If you cannot handle a request, call the `escalate` tool.
@@ -213,6 +214,10 @@ def call_model_node(state: AgentState) -> Dict[str, Any]:
 				updates["intent"] = "inquiry"
 			elif tool_name == "save_collected_information":
 				updates["intent"] = "lead"
+		elif lowered.startswith("thought:"):
+			# The model hallucinated an internal thought without calling a tool.
+			# Override the response so the user doesn't see internal reasoning.
+			updates["final_response"] = "Let me check that for you real quick..."
 
 		return updates
 
