@@ -51,7 +51,7 @@ function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/chat/${conversationId}/message`, {
+      const response = await fetch(`http://localhost:8000/api/chat/${conversationId}/message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -146,7 +146,7 @@ function App() {
       const formData = new FormData();
       formData.append('file', audioBlob, 'audio.webm');
       
-      const sttResponse = await fetch('/api/voice/transcribe', {
+      const sttResponse = await fetch('http://localhost:8000/api/voice/transcribe', {
         method: 'POST',
         body: formData
       });
@@ -161,7 +161,7 @@ function App() {
       const userMessage = { role: 'user', content: text };
       setMessages((prev) => [...prev, userMessage]);
       
-      const chatResponse = await fetch(`/api/chat/${conversationId}/message`, {
+      const chatResponse = await fetch(`http://localhost:8000/api/chat/${conversationId}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
@@ -192,7 +192,7 @@ function App() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('/api/upload', {
+      const response = await fetch('http://localhost:8000/api/upload', {
         method: 'POST',
         body: formData,
       });
@@ -208,7 +208,7 @@ function App() {
       setMessages((prev) => [...prev, userMessage]);
       setIsLoading(true);
 
-      const chatResponse = await fetch(`/api/chat/${conversationId}/message`, {
+      const chatResponse = await fetch(`http://localhost:8000/api/chat/${conversationId}/message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

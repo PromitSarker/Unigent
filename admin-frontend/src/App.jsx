@@ -53,7 +53,7 @@ function DashboardView() {
   const [selectedSummary, setSelectedSummary] = useState(null);
 
   useEffect(() => {
-    fetch('/api/admin/conversations')
+    fetch('http://localhost:8000/api/admin/conversations')
       .then(res => res.json())
       .then(data => {
         setConversations(data);
@@ -174,7 +174,7 @@ function LeadsView() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/admin/collected_data')
+    fetch('http://localhost:8000/api/admin/collected_data')
       .then(res => res.json())
       .then(data => {
         setLeads(data);
@@ -280,7 +280,7 @@ function KnowledgeBaseView() {
 
   const fetchDocs = () => {
     setLoading(true);
-    fetch('/api/documents')
+    fetch('http://localhost:8000/api/documents')
       .then(res => res.json())
       .then(data => {
         setDocuments(data.documents || []);
@@ -312,7 +312,7 @@ function KnowledgeBaseView() {
           formData.append('metadata_str', docMetadata);
         }
 
-        const res = await fetch('/api/documents/upload', {
+        const res = await fetch('http://localhost:8000/api/documents/upload', {
           method: 'POST',
           body: formData
         });
@@ -325,7 +325,7 @@ function KnowledgeBaseView() {
           meta = JSON.parse(docMetadata);
         }
         
-        const res = await fetch('/api/documents', {
+        const res = await fetch('http://localhost:8000/api/documents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: docText, metadata: meta })
@@ -352,7 +352,7 @@ function KnowledgeBaseView() {
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this document?")) return;
     try {
-      await fetch(`/api/documents/${id}`, { method: 'DELETE' });
+      await fetch(`http://localhost:8000/api/documents/${id}`, { method: 'DELETE' });
       fetchDocs();
     } catch (err) {
       console.error(err);
