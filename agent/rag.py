@@ -10,20 +10,28 @@ from agent.config import GEMINI_API_KEY
 CHROMA_PERSIST_DIR = os.path.join(os.path.dirname(__file__), "..", "chroma_db")
 
 # Initialize embeddings
-_embeddings = GoogleGenerativeAIEmbeddings(
-    model="models/embedding-001",
-    google_api_key=GEMINI_API_KEY
-)
+try:
+    _embeddings = GoogleGenerativeAIEmbeddings(
+        model="models/embedding-001",
+        google_api_key=GEMINI_API_KEY
+    )
 
-# Initialize Chroma vector store
-_vectorstore = Chroma(
-	collection_name="rt_comm_knowledge_gemini",
-	embedding_function=_embeddings,
-	persist_directory=CHROMA_PERSIST_DIR
-)
+    # Initialize Chroma vector store
+    _vectorstore = Chroma(
+    	collection_name="rt_comm_knowledge_gemini",
+    	embedding_function=_embeddings,
+    	persist_directory=CHROMA_PERSIST_DIR
+    )
+except Exception as e:
+    import traceback
+    with open("data/crash.log", "w") as f:
+        f.write(traceback.format_exc())
+    _vectorstore = None
 
 def add_document(text: str, metadata: dict = None) -> str:
 	"""Adds a document to the Chroma vector store and returns the ID."""
+	if _vectorstore is None:
+		raise RuntimeError("Vector store is not initialized. Check crash.log.")
 	import uuid
 	doc_id = str(uuid.uuid4())
 	
@@ -34,6 +42,8 @@ def add_document(text: str, metadata: dict = None) -> str:
 
 def delete_document(doc_id: str) -> bool:
 	"""Deletes a document from the Chroma vector store by ID."""
+	if _vectorstore is None:
+		return False
 	try:
 		_vectorstore.delete(ids=[doc_id])
 		_vectorstore.persist()
@@ -44,6 +54,8 @@ def delete_document(doc_id: str) -> bool:
 
 def search_documents(query: str, k: int = 3) -> str:
 	"""Searches the vector store and returns a formatted string of results."""
+	if _vectorstore is None:
+		return "Vector store is offline."
 	results = _vectorstore.similarity_search(query, k=k)
 	if not results:
 		return "No relevant information found in the knowledge base."
@@ -56,6 +68,8 @@ def search_documents(query: str, k: int = 3) -> str:
 
 def list_documents() -> List[dict]:
 	"""Returns all documents from the vector store."""
+	if _vectorstore is None:
+		return []
 	results = _vectorstore.get()
 	documents = []
 	
