@@ -47,9 +47,13 @@ async def upload_document(file: UploadFile = File(...), metadata_str: str = Form
 		metadata = {}
 		if metadata_str:
 			try:
-				metadata = json.loads(metadata_str)
+				parsed = json.loads(metadata_str)
+				if isinstance(parsed, dict):
+					metadata = parsed
+				else:
+					metadata = {"info": str(parsed)}
 			except json.JSONDecodeError:
-				raise HTTPException(status_code=400, detail="Invalid JSON in metadata.")
+				metadata = {"info": metadata_str}
 
 		# Extract text from PDF
 		reader = PdfReader(file.file)

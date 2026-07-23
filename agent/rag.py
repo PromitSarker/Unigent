@@ -3,18 +3,21 @@ from typing import List
 
 from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from agent.config import GEMINI_API_KEY
 
 # Persist directory for ChromaDB
 CHROMA_PERSIST_DIR = os.path.join(os.path.dirname(__file__), "..", "chroma_db")
 
 # Initialize embeddings
-# sentence-transformers/all-MiniLM-L6-v2 is a small, fast model for embeddings
-_embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+_embeddings = GoogleGenerativeAIEmbeddings(
+    model="models/embedding-001",
+    google_api_key=GEMINI_API_KEY
+)
 
 # Initialize Chroma vector store
 _vectorstore = Chroma(
-	collection_name="rt_comm_knowledge",
+	collection_name="rt_comm_knowledge_gemini",
 	embedding_function=_embeddings,
 	persist_directory=CHROMA_PERSIST_DIR
 )
