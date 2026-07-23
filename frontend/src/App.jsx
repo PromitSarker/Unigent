@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, MessageSquarePlus, MessageSquare, Paperclip, Loader2, Phone, PhoneOff, Mic, MicOff } from 'lucide-react';
+import { Send, MessageSquarePlus, Paperclip, Loader2, Phone, PhoneOff, Mic, Activity } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 const generateUUID = () => {
@@ -15,16 +15,27 @@ function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // Voice Mode State
   const [isVoiceMode, setIsVoiceMode] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
+  const [isVoiceConnected, setIsVoiceConnected] = useState(false);
+  
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  
+  // Audio Streaming Refs
+  const wsRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const processorRef = useRef(null);
+  const activeSourcesRef = useRef([]);
+  const nextPlayTimeRef = useRef(0);
 
   useEffect(() => {
-    // Generate a new session ID when the app loads
     setConversationId(generateUUID());
+    return () => {
+      stopVoiceCall();
+    };
   }, []);
 
   const scrollToBottom = () => {
@@ -59,128 +70,129 @@ function App() {
         body: JSON.stringify({ message: userMessage.content }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to get response');
-      }
+      if (!response.ok) throw new Error('Failed to get response');
 
       const data = await response.json();
-      
-      const assistantMessage = { 
-        role: 'assistant', 
-        content: data.assistant_response 
-      };
-      
-      setMessages((prev) => [...prev, assistantMessage]);
-      
-      // If in voice mode, speak the response
-      if (isVoiceMode) {
-        playTTS(data.assistant_response);
-      }
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.assistant_response }]);
     } catch (error) {
       console.error('Error sending message:', error);
-      const errorMessage = { 
-        role: 'assistant', 
-        content: 'Sorry, I encountered an error while processing your request.' 
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-      if (isVoiceMode) playTTS(errorMessage.content);
+      setMessages((prev) => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error while processing your request.' }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const playTTS = (text) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const cleanText = text.replace(/[*#_`~]/g, '');
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    const voices = window.speechSynthesis.getVoices();
-    const englishVoices = voices.filter(v => v.lang.startsWith('en'));
-    const goodVoice = englishVoices.find(v => v.name.includes('Google') || v.name.includes('Female')) || englishVoices[0] || voices[0];
-    if(goodVoice) utterance.voice = goodVoice;
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const toggleVoiceMode = () => {
-    setIsVoiceMode(!isVoiceMode);
-    if (isRecording) stopRecording();
-    window.speechSynthesis.cancel();
-  };
-
-  const startRecording = async () => {
+  const startVoiceCall = async () => {
+    setIsVoiceMode(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      audioChunksRef.current = [];
+      mediaStreamRef.current = stream;
 
-      mediaRecorderRef.current.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${window.location.host}/api/voice/stream`);
+      wsRef.current = ws;
+
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const audioCtx = new AudioContext({ sampleRate: 16000 });
+      audioContextRef.current = audioCtx;
+      nextPlayTimeRef.current = 0;
+
+      ws.onopen = () => {
+        setIsVoiceConnected(true);
+        const source = audioCtx.createMediaStreamSource(stream);
+        const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+        processorRef.current = processor;
+        
+        processor.onaudioprocess = (e) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            const inputData = e.inputBuffer.getChannelData(0);
+            const pcmData = new Int16Array(inputData.length);
+            for (let i = 0; i < inputData.length; i++) {
+              let s = Math.max(-1, Math.min(1, inputData[i]));
+              pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            ws.send(pcmData.buffer);
+          }
+        };
+
+        source.connect(processor);
+        processor.connect(audioCtx.destination);
       };
 
-      mediaRecorderRef.current.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach(track => track.stop());
-        await processAudio(audioBlob);
+      ws.onmessage = async (e) => {
+        if (typeof e.data === 'string') {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'interrupted') {
+            // Stop current playback
+            activeSourcesRef.current.forEach(source => {
+              try { source.stop(); } catch(err){}
+            });
+            activeSourcesRef.current = [];
+            nextPlayTimeRef.current = audioCtx.currentTime;
+          }
+        } else {
+          // Play received PCM audio
+          const arrayBuffer = await e.data.arrayBuffer();
+          const int16Data = new Int16Array(arrayBuffer);
+          const float32Data = new Float32Array(int16Data.length);
+          for (let i = 0; i < int16Data.length; i++) {
+            float32Data[i] = int16Data[i] / 32768.0;
+          }
+
+          const audioBuffer = audioCtx.createBuffer(1, float32Data.length, 16000);
+          audioBuffer.getChannelData(0).set(float32Data);
+
+          const source = audioCtx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(audioCtx.destination);
+
+          source.onended = () => {
+            activeSourcesRef.current = activeSourcesRef.current.filter(s => s !== source);
+          };
+          activeSourcesRef.current.push(source);
+
+          const startTime = Math.max(audioCtx.currentTime, nextPlayTimeRef.current);
+          source.start(startTime);
+          nextPlayTimeRef.current = startTime + audioBuffer.duration;
+        }
       };
 
-      window.speechSynthesis.cancel(); // Stop AI speaking when user starts
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
+      ws.onclose = () => {
+        stopVoiceCall();
+      };
+
     } catch (err) {
       console.error("Microphone access error", err);
       alert("Microphone access denied or unavailable.");
+      setIsVoiceMode(false);
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+  const stopVoiceCall = () => {
+    setIsVoiceMode(false);
+    setIsVoiceConnected(false);
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
     }
-    setIsRecording(true); // visual cue until processing finishes
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    activeSourcesRef.current = [];
   };
 
-  const processAudio = async (audioBlob) => {
-    setIsLoading(true);
-    setIsRecording(false);
-    try {
-      const formData = new FormData();
-      formData.append('file', audioBlob, 'audio.webm');
-      
-      const sttResponse = await fetch('/api/voice/transcribe', {
-        method: 'POST',
-        body: formData
-      });
-      if (!sttResponse.ok) throw new Error('Transcription failed');
-      const { text } = await sttResponse.json();
-      
-      if (!text || text.trim().length === 0) {
-        setIsLoading(false);
-        return;
-      }
-      
-      const userMessage = { role: 'user', content: text };
-      setMessages((prev) => [...prev, userMessage]);
-      
-      const chatResponse = await fetch(`/api/chat/${conversationId}/message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
-      });
-      
-      if (!chatResponse.ok) throw new Error('Chat failed');
-      const chatData = await chatResponse.json();
-      
-      setMessages((prev) => [...prev, { role: 'assistant', content: chatData.assistant_response }]);
-      if (isVoiceMode) playTTS(chatData.assistant_response);
-      
-    } catch (err) {
-      console.error(err);
-      const errMsg = "Sorry, voice processing failed.";
-      setMessages((prev) => [...prev, { role: 'assistant', content: errMsg }]);
-      if (isVoiceMode) playTTS(errMsg);
-    } finally {
-      setIsLoading(false);
-    }
+  const toggleVoiceMode = () => {
+    if (isVoiceMode) stopVoiceCall();
+    else startVoiceCall();
   };
 
   const handleFileUpload = async (e) => {
@@ -198,10 +210,7 @@ function App() {
       });
       
       if (!response.ok) throw new Error('Upload failed');
-      
       const data = await response.json();
-      
-      // Auto-send a message with the file URL
       const fileMessage = `Here is my document: ${data.url}`;
       
       const userMessage = { role: 'user', content: fileMessage };
@@ -210,15 +219,12 @@ function App() {
 
       const chatResponse = await fetch(`/api/chat/${conversationId}/message`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: fileMessage }),
       });
 
       if (!chatResponse.ok) throw new Error('Failed to get chat response');
       const chatData = await chatResponse.json();
-      
       setMessages((prev) => [...prev, { role: 'assistant', content: chatData.assistant_response }]);
     } catch (error) {
       console.error('Error uploading file:', error);
@@ -284,23 +290,21 @@ function App() {
       <div className="input-container">
         {isVoiceMode ? (
           <div className="voice-controls" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px' }}>
-            <button 
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`mic-button ${isRecording ? 'recording' : ''}`}
-              disabled={isLoading}
+            <div 
+              className={`mic-button ${isVoiceConnected ? 'recording' : ''}`}
               style={{
                 width: '80px', height: '80px', borderRadius: '50%',
-                backgroundColor: isRecording ? '#ef4444' : '#4f46e5',
-                color: 'white', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer',
+                backgroundColor: isVoiceConnected ? '#10b981' : '#f59e0b',
+                color: 'white', border: 'none',
                 display: 'flex', justifyContent: 'center', alignItems: 'center',
-                boxShadow: isRecording ? '0 0 20px rgba(239, 68, 68, 0.6)' : '0 4px 12px rgba(79, 70, 229, 0.4)',
+                boxShadow: isVoiceConnected ? '0 0 20px rgba(16, 185, 129, 0.6)' : 'none',
                 transition: 'all 0.3s ease'
               }}
             >
-              {isRecording ? <MicOff size={32} /> : <Mic size={32} />}
-            </button>
-            <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '0.9rem' }}>
-              {isLoading ? "Thinking..." : isRecording ? "Tap to Stop & Send" : "Tap to Speak"}
+              {isVoiceConnected ? <Activity size={32} /> : <Loader2 size={32} className="spin" />}
+            </div>
+            <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '0.9rem', textAlign: 'center' }}>
+              {isVoiceConnected ? "Call Connected. Just start talking naturally!" : "Connecting to Gemini..."}
             </p>
           </div>
         ) : (
