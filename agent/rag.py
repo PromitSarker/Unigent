@@ -12,7 +12,7 @@ CHROMA_PERSIST_DIR = os.path.join(os.path.dirname(__file__), "..", "chroma_db")
 # Initialize embeddings
 try:
     _embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
+        model="models/text-embedding-004",
         google_api_key=GEMINI_API_KEY
     )
 
