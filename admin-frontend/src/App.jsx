@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Users, FileText, Send, Database, AlertCircle, CheckCircle } from 'lucide-react';
 
+// Do not hard-code localhost: it points at the administrator's own computer
+// when this panel is opened from another device.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000/api`;
+
+async function getApiError(response) {
+  const body = await response.json().catch(() => null);
+  return body?.detail || body?.message || `Request failed (${response.status})`;
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -53,7 +62,7 @@ function DashboardView() {
   const [selectedSummary, setSelectedSummary] = useState(null);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/admin/conversations')
+    fetch(`${API_BASE_URL}/admin/conversations`)
       .then(res => res.json())
       .then(data => {
         setConversations(data);
@@ -174,7 +183,7 @@ function LeadsView() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/admin/collected_data')
+    fetch(`${API_BASE_URL}/admin/collected_data`)
       .then(res => res.json())
       .then(data => {
         setLeads(data);
@@ -278,18 +287,19 @@ function KnowledgeBaseView() {
   const [pushing, setPushing] = useState(false);
   const [message, setMessage] = useState(null);
 
-  const fetchDocs = () => {
+  const fetchDocs = async () => {
     setLoading(true);
-    fetch('http://localhost:8000/api/documents')
-      .then(res => res.json())
-      .then(data => {
-        setDocuments(data.documents || []);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setLoading(false);
-      });
+    try {
+      const res = await fetch(`${API_BASE_URL}/documents`);
+      if (!res.ok) throw new Error(await getApiError(res));
+      const data = await res.json();
+      setDocuments(data.documents || []);
+    } catch (err) {
+      console.error('Failed to fetch documents', err);
+      setMessage({ type: 'error', text: `Could not load documents: ${err.message}` });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -312,12 +322,12 @@ function KnowledgeBaseView() {
           formData.append('metadata_str', docMetadata);
         }
 
-        const res = await fetch('http://localhost:8000/api/documents/upload', {
+        const res = await fetch(`${API_BASE_URL}/documents/upload`, {
           method: 'POST',
           body: formData
         });
 
-        if (!res.ok) throw new Error('Failed to push PDF document');
+        if (!res.ok) throw new Error(await getApiError(res));
       } else {
         // Handle plain text
         let meta = {};
@@ -325,13 +335,13 @@ function KnowledgeBaseView() {
           meta = JSON.parse(docMetadata);
         }
         
-        const res = await fetch('http://localhost:8000/api/documents', {
+        const res = await fetch(`${API_BASE_URL}/documents`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: docText, metadata: meta })
         });
         
-        if (!res.ok) throw new Error('Failed to push document');
+        if (!res.ok) throw new Error(await getApiError(res));
       }
       
       setMessage({ type: 'success', text: 'Document successfully pushed to ChromaDB!' });
@@ -352,10 +362,12 @@ function KnowledgeBaseView() {
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this document?")) return;
     try {
-      await fetch(`http://localhost:8000/api/documents/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE_URL}/documents/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await getApiError(res));
       fetchDocs();
     } catch (err) {
       console.error(err);
+      setMessage({ type: 'error', text: `Could not delete document: ${err.message}` });
     }
   };
 

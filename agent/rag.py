@@ -1,7 +1,7 @@
 import os
 from typing import List
 
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from agent.config import GEMINI_API_KEY
@@ -24,6 +24,7 @@ try:
     )
 except Exception as e:
     import traceback
+    os.makedirs("data", exist_ok=True)
     with open("data/crash.log", "w") as f:
         f.write(traceback.format_exc())
     _vectorstore = None
@@ -37,7 +38,6 @@ def add_document(text: str, metadata: dict = None) -> str:
 	
 	doc = Document(page_content=text, metadata=metadata or {})
 	_vectorstore.add_documents(documents=[doc], ids=[doc_id])
-	_vectorstore.persist()
 	return doc_id
 
 def delete_document(doc_id: str) -> bool:
@@ -46,7 +46,6 @@ def delete_document(doc_id: str) -> bool:
 		return False
 	try:
 		_vectorstore.delete(ids=[doc_id])
-		_vectorstore.persist()
 		return True
 	except ValueError:
 		# ID not found
