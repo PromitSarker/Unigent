@@ -51,7 +51,7 @@ function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`http://localhost:8000/api/chat/${conversationId}/message`, {
+      const response = await fetch(`/api/chat/${conversationId}/message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -60,7 +60,8 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get response');
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData?.detail?.message || errData?.message || `HTTP ${response.status}`);
       }
 
       const data = await response.json();
@@ -80,7 +81,7 @@ function App() {
       console.error('Error sending message:', error);
       const errorMessage = { 
         role: 'assistant', 
-        content: 'Sorry, I encountered an error while processing your request.' 
+        content: `Sorry, I encountered an error: ${error.message}` 
       };
       setMessages((prev) => [...prev, errorMessage]);
       if (isVoiceMode) playTTS(errorMessage.content);
@@ -146,11 +147,14 @@ function App() {
       const formData = new FormData();
       formData.append('file', audioBlob, 'audio.webm');
       
-      const sttResponse = await fetch('http://localhost:8000/api/voice/transcribe', {
+      const sttResponse = await fetch('/api/voice/transcribe', {
         method: 'POST',
         body: formData
       });
-      if (!sttResponse.ok) throw new Error('Transcription failed');
+      if (!sttResponse.ok) {
+        const errData = await sttResponse.json().catch(() => ({}));
+        throw new Error(errData?.detail?.message || errData?.message || `Transcription failed: HTTP ${sttResponse.status}`);
+      }
       const { text } = await sttResponse.json();
       
       if (!text || text.trim().length === 0) {
@@ -161,13 +165,16 @@ function App() {
       const userMessage = { role: 'user', content: text };
       setMessages((prev) => [...prev, userMessage]);
       
-      const chatResponse = await fetch(`http://localhost:8000/api/chat/${conversationId}/message`, {
+      const chatResponse = await fetch(`/api/chat/${conversationId}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
       });
       
-      if (!chatResponse.ok) throw new Error('Chat failed');
+      if (!chatResponse.ok) {
+        const errData = await chatResponse.json().catch(() => ({}));
+        throw new Error(errData?.detail?.message || errData?.message || `Chat failed: HTTP ${chatResponse.status}`);
+      }
       const chatData = await chatResponse.json();
       
       setMessages((prev) => [...prev, { role: 'assistant', content: chatData.assistant_response }]);
@@ -175,7 +182,7 @@ function App() {
       
     } catch (err) {
       console.error(err);
-      const errMsg = "Sorry, voice processing failed.";
+      const errMsg = `Sorry, voice processing failed: ${err.message}`;
       setMessages((prev) => [...prev, { role: 'assistant', content: errMsg }]);
       if (isVoiceMode) playTTS(errMsg);
     } finally {
@@ -192,12 +199,15 @@ function App() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('http://localhost:8000/api/upload', {
+      const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
       
-      if (!response.ok) throw new Error('Upload failed');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData?.detail?.message || errData?.message || `HTTP ${response.status}`);
+      }
       
       const data = await response.json();
       
@@ -208,7 +218,7 @@ function App() {
       setMessages((prev) => [...prev, userMessage]);
       setIsLoading(true);
 
-      const chatResponse = await fetch(`http://localhost:8000/api/chat/${conversationId}/message`, {
+      const chatResponse = await fetch(`/api/chat/${conversationId}/message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -216,13 +226,16 @@ function App() {
         body: JSON.stringify({ message: fileMessage }),
       });
 
-      if (!chatResponse.ok) throw new Error('Failed to get chat response');
+      if (!chatResponse.ok) {
+        const errData = await chatResponse.json().catch(() => ({}));
+        throw new Error(errData?.detail?.message || errData?.message || `HTTP ${chatResponse.status}`);
+      }
       const chatData = await chatResponse.json();
       
       setMessages((prev) => [...prev, { role: 'assistant', content: chatData.assistant_response }]);
     } catch (error) {
       console.error('Error uploading file:', error);
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error uploading your file.' }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: `Sorry, I encountered an error uploading your file: ${error.message}` }]);
     } finally {
       setIsUploading(false);
       setIsLoading(false);
